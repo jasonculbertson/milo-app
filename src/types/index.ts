@@ -1,31 +1,40 @@
-export type UserRole = 'mom' | 'family';
-
 export interface User {
   id: string;
-  phone_number: string;
   name: string;
-  role: UserRole;
-  expo_push_token: string | null;
-  notification_time: string;
-  alert_time: string;
-  created_at: string;
-  updated_at: string;
+  phone: string;
+  role: 'senior' | 'family';
+  createdAt: string;
 }
 
 export interface CheckIn {
   id: string;
-  user_id: string;
-  status: 'ok' | 'need_help';
-  message: string | null;
+  userId: string;
+  status: 'ok' | 'help';
   timestamp: string;
-  created_at: string;
+  message?: string;
 }
 
 export interface FamilyMember {
   id: string;
-  user_id: string;
-  family_member_id: string;
-  created_at: string;
-  family_member?: User;
+  name: string;
+  phone: string;
+  relationship: string;
+  userId: string; // The senior's user ID
 }
 
+export interface Reminder {
+  id: string;
+  userId: string;
+  title: string;
+  time: string; // ISO string or time format
+  recurring: boolean;
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface NotificationSettings {
+  enabled: boolean;
+  dailyReminder: boolean;
+  reminderTime: string;
+  sound: boolean;
+}

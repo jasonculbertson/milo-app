@@ -39,7 +39,7 @@ export async function addFamilyMember(member: User): Promise<void> {
 }
 
 // Check-ins Storage
-export async function saveCheckIn(checkIn: CheckIn): Promise<void> {
+export async function addCheckIn(checkIn: CheckIn): Promise<void> {
   const checkIns = await getCheckIns();
   checkIns.unshift(checkIn);
   // Keep only last 30 days
@@ -58,26 +58,32 @@ export async function getTodayCheckIn(userId: string): Promise<CheckIn | null> {
   const checkIns = await getCheckIns();
   const today = new Date().toISOString().split('T')[0];
   return checkIns.find(c => 
-    c.user_id === userId && 
+    c.userId === userId && 
     c.timestamp.startsWith(today)
   ) || null;
 }
 
 // Push Token Management (for family member devices)
-export async function savePushToken(userId: string, token: string, phoneNumber: string): Promise<void> {
+export async function savePushToken(userId: string, token: string): Promise<void> {
   const tokens = await getPushTokens();
-  tokens[userId] = { token, phoneNumber, updatedAt: new Date().toISOString() };
+  tokens[userId] = token;
   await AsyncStorage.setItem(STORAGE_KEYS.PUSH_TOKENS, JSON.stringify(tokens));
 }
 
-export async function getPushTokens(): Promise<Record<string, { token: string; phoneNumber: string; updatedAt: string }>> {
+export async function getPushTokens(): Promise<Record<string, string>> {
   const tokensJson = await AsyncStorage.getItem(STORAGE_KEYS.PUSH_TOKENS);
   return tokensJson ? JSON.parse(tokensJson) : {};
 }
 
 export async function getPushToken(userId: string): Promise<string | null> {
   const tokens = await getPushTokens();
-  return tokens[userId]?.token || null;
+  return tokens[userId] || null;
+}
+
+export async function removePushToken(userId: string): Promise<void> {
+  const tokens = await getPushTokens();
+  delete tokens[userId];
+  await AsyncStorage.setItem(STORAGE_KEYS.PUSH_TOKENS, JSON.stringify(tokens));
 }
 
 // Sync helpers (can be extended with iCloud later)

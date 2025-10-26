@@ -1,185 +1,180 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View } from 'react-native';
-import * as Notifications from 'expo-notifications';
-import { AuthProvider, useAuth } from './src/contexts/AuthContext';
-import SignInScreen from './src/screens/SignInScreen';
-import CheckInScreen from './src/screens/CheckInScreen';
-import FamilyDashboard from './src/screens/FamilyDashboard';
-import {
-  registerForPushNotificationsAsync,
-  setupNotificationCategories,
-  scheduleDailyCheckinNotification,
-} from './src/services/notificationService';
-import {
-  getCurrentUser,
-  saveCurrentUser,
-  saveCheckIn,
-  getFamilyMembers,
-} from './src/config/storage';
-import { sendPushNotificationToToken } from './src/services/notificationService';
+import { Text, View, StyleSheet } from 'react-native';
+import { SeniorHomeScreen } from './src/screens/SeniorHomeScreen';
+import { FamilyDashboardScreen } from './src/screens/FamilyDashboardScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
+import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { getCurrentUser } from './src/config/storage';
+import { colors } from './src/theme';
 
-function AppContent() {
-  const { user, loading, refreshUser } = useAuth();
-  const [expoPushToken, setExpoPushToken] = useState<string | undefined>();
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
+
+function SeniorTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.gray600,
+        tabBarStyle: {
+          backgroundColor: colors.white,
+          borderTopWidth: 1,
+          borderTopColor: colors.gray100,
+          paddingTop: 8,
+          paddingBottom: 8,
+          height: 90,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+          marginTop: 4,
+        },
+        headerShown: false,
+      }}
+    >
+      <Tab.Screen
+        name="Home"
+        component={SeniorHomeScreen}
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 24 }}>🏠</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 24 }}>⚙️</Text>
+          ),
+        }}
+      />
+    </Tab.Navigator>
+  );
+}
+
+function FamilyTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.gray600,
+        tabBarStyle: {
+          backgroundColor: colors.white,
+          borderTopWidth: 1,
+          borderTopColor: colors.gray100,
+          paddingTop: 8,
+          paddingBottom: 8,
+          height: 90,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+          marginTop: 4,
+        },
+        headerShown: false,
+      }}
+    >
+      <Tab.Screen
+        name="Dashboard"
+        component={FamilyDashboardScreen}
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 24 }}>👨‍👩‍👧‍👦</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 24 }}>⚙️</Text>
+          ),
+        }}
+      />
+    </Tab.Navigator>
+  );
+}
+
+export default function App() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [isOnboarded, setIsOnboarded] = useState(false);
+  const [userRole, setUserRole] = useState<'senior' | 'family' | null>(null);
 
   useEffect(() => {
-    // Set up notifications
-    setupNotifications();
-
-    // Set up notification listeners
-    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
-      console.log('Notification received:', notification);
-      // Refresh data when notification is received
-      refreshUser();
-    });
-
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(
-      async (response) => {
-        console.log('Notification response:', response);
-
-        const actionIdentifier = response.actionIdentifier;
-
-        // Handle interactive notification actions
-        if (actionIdentifier === 'CHECKIN_OK') {
-          await handleCheckInFromNotification('ok');
-        } else if (actionIdentifier === 'CHECKIN_NEED_HELP') {
-          await handleCheckInFromNotification('need_help');
-        }
-      }
-    );
-
-    return () => {
-      if (notificationListener.current) {
-        Notifications.removeNotificationSubscription(notificationListener.current);
-      }
-      if (responseListener.current) {
-        Notifications.removeNotificationSubscription(responseListener.current);
-      }
-    };
+    checkOnboardingStatus();
   }, []);
 
-  useEffect(() => {
-    if (user && expoPushToken) {
-      // Update user's push token
-      updatePushToken(expoPushToken);
-
-      // Schedule daily check-in notification for mom
-      if (user.role === 'mom') {
-        const [hour, minute] = user.notification_time.split(':').map(Number);
-        scheduleDailyCheckinNotification(hour, minute);
-      }
-    }
-  }, [user, expoPushToken]);
-
-  const setupNotifications = async () => {
-    await setupNotificationCategories();
-    const token = await registerForPushNotificationsAsync();
-    setExpoPushToken(token);
-  };
-
-  const updatePushToken = async (token: string) => {
-    if (!user) return;
-
+  const checkOnboardingStatus = async () => {
     try {
-      const updatedUser = { ...user, expo_push_token: token };
-      await saveCurrentUser(updatedUser);
-      await refreshUser();
-    } catch (error) {
-      console.error('Error updating push token:', error);
-    }
-  };
-
-  const handleCheckInFromNotification = async (status: 'ok' | 'need_help') => {
-    const currentUser = await getCurrentUser();
-    if (!currentUser) return;
-
-    try {
-      // Create check-in
-      const checkIn = {
-        id: generateId(),
-        user_id: currentUser.id,
-        status,
-        message: null,
-        timestamp: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      };
-
-      await saveCheckIn(checkIn);
-
-      // Get family members and send notifications
-      const familyMembers = await getFamilyMembers();
-      const notificationTitle =
-        status === 'ok' ? `${currentUser.name} checked in! ✅` : `${currentUser.name} needs help! ⚠️`;
-      const notificationBody =
-        status === 'ok'
-          ? `${currentUser.name} is doing well today.`
-          : `${currentUser.name} indicated they need help. Please check on them.`;
-
-      // Send push notifications to family members
-      for (const member of familyMembers) {
-        if (member.id !== currentUser.id && member.expo_push_token) {
-          try {
-            await sendPushNotificationToToken(
-              member.expo_push_token,
-              notificationTitle,
-              notificationBody,
-              {
-                type: 'checkin',
-                status,
-                from_user_id: currentUser.id,
-                from_user_name: currentUser.name,
-              }
-            );
-          } catch (error) {
-            console.error(`Error sending notification to ${member.name}:`, error);
-          }
-        }
+      const user = await getCurrentUser();
+      if (user) {
+        setIsOnboarded(true);
+        setUserRole(user.role);
       }
-
-      // Send local confirmation
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Check-in Recorded! ✅',
-          body: 'Your family has been notified.',
-          sound: true,
-        },
-        trigger: null,
-      });
-
-      await refreshUser();
     } catch (error) {
-      console.error('Error checking in from notification:', error);
+      console.error('Error checking onboarding status:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  if (loading) {
+  const handleOnboardingComplete = async () => {
+    const user = await getCurrentUser();
+    setIsOnboarded(true);
+    setUserRole(user?.role || 'senior');
+  };
+
+  if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' }}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
-  if (!user) {
-    return <SignInScreen />;
-  }
-
-  // Show appropriate screen based on user role
-  return user.role === 'mom' ? <CheckInScreen /> : <FamilyDashboard />;
-}
-
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
-
-export default function App() {
   return (
-    <AuthProvider>
-      <StatusBar style="auto" />
-      <AppContent />
-    </AuthProvider>
+    <>
+      <StatusBar style="dark" />
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {!isOnboarded ? (
+            <Stack.Screen name="Onboarding">
+              {(props) => (
+                <OnboardingScreen
+                  {...props}
+                  onComplete={handleOnboardingComplete}
+                />
+              )}
+            </Stack.Screen>
+          ) : (
+            <Stack.Screen name="Main">
+              {() =>
+                userRole === 'family' ? <FamilyTabs /> : <SeniorTabs />
+              }
+            </Stack.Screen>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+  },
+  loadingText: {
+    fontSize: 18,
+    color: colors.gray600,
+  },
+});
