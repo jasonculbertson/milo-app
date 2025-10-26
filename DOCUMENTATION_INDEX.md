@@ -35,6 +35,13 @@ Complete documentation for the Milo AI assistant project - from product vision t
   - Build full PRD (2-3 months)
   - Hybrid approach (recommended)
 
+### User Experience
+- **[ONBOARDING_SPEC.md](ONBOARDING_SPEC.md)** - Dual-path onboarding flows
+  - Senior onboarding (6 steps)
+  - Family member onboarding (5 steps)
+  - Voice scripts & permissions
+  - Accessibility considerations
+
 ---
 
 ## 🎨 Design Specifications
@@ -82,6 +89,21 @@ Complete documentation for the Milo AI assistant project - from product vision t
   - Guardrails & safety
   - QA plan
   - Pricing & entitlements
+
+- **[NOTIFICATION_SPEC.md](NOTIFICATION_SPEC.md)** - Daily notification system
+  - Senior check-in flow
+  - Family summary aggregation
+  - Escalation logic
+  - Weather integration
+  - GPT personalization
+
+- **[SYSTEM_ADDENDUM.md](SYSTEM_ADDENDUM.md)** - Core system specifications (v0.3)
+  - Privacy & security implementation
+  - Behavioral engagement loops
+  - Conversational UX & intents
+  - Offline resilience
+  - Analytics & insights
+  - Admin tools & QA plan
 
 ---
 
@@ -154,6 +176,9 @@ milo-app/
 │   ├── TECHNICAL_SPEC.md
 │   ├── DESIGN_SPEC.md
 │   ├── MOTION_SPEC.md
+│   ├── ONBOARDING_SPEC.md
+│   ├── NOTIFICATION_SPEC.md
+│   ├── SYSTEM_ADDENDUM.md
 │   ├── SETUP_GUIDE.md
 │   ├── EAS_SETUP.md
 │   ├── NEXT_STEPS.md
@@ -201,12 +226,16 @@ milo-app/
 ### For Backend Engineers
 1. Read [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md) - database & API specs
 2. Review [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) - backend layer
-3. Implement [MIGRATION_PLAN.md](MIGRATION_PLAN.md) Phase 1
+3. Check [SYSTEM_ADDENDUM.md](SYSTEM_ADDENDUM.md) - privacy & offline specs
+4. Implement [NOTIFICATION_SPEC.md](NOTIFICATION_SPEC.md) - notification system
+5. Follow [MIGRATION_PLAN.md](MIGRATION_PLAN.md) Phase 1
 
 ### For QA Engineers
-1. Review [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md) Section 7 - QA plan
-2. Check [DESIGN_SPEC.md](DESIGN_SPEC.md) Section 6 - accessibility
-3. Test using [MOTION_SPEC.md](MOTION_SPEC.md) Section 6 - testing checklist
+1. Review [SYSTEM_ADDENDUM.md](SYSTEM_ADDENDUM.md) Section 10 - comprehensive QA plan
+2. Check [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md) Section 7 - API testing
+3. Test [DESIGN_SPEC.md](DESIGN_SPEC.md) Section 6 - accessibility
+4. Validate [MOTION_SPEC.md](MOTION_SPEC.md) Section 6 - animation testing
+5. Test [NOTIFICATION_SPEC.md](NOTIFICATION_SPEC.md) - notification flows
 
 ---
 
@@ -334,6 +363,9 @@ When adding new documentation:
 | DESIGN_SPEC.md | ✅ Complete | 2025-10-26 | 100% |
 | MOTION_SPEC.md | ✅ Complete | 2025-10-26 | 100% |
 | SYSTEM_ARCHITECTURE.md | ✅ Complete | 2025-10-26 | 100% |
+| SYSTEM_ADDENDUM.md | ✅ Complete | 2025-10-26 | 100% |
+| ONBOARDING_SPEC.md | ✅ Complete | 2025-10-26 | 100% |
+| NOTIFICATION_SPEC.md | ✅ Complete | 2025-10-26 | 100% |
 | MIGRATION_PLAN.md | ✅ Complete | 2025-10-26 | 100% |
 | SETUP_GUIDE.md | ✅ Complete | 2025-10-26 | 100% |
 | DECISION_NEEDED.md | ✅ Complete | 2025-10-26 | 100% |
@@ -346,9 +378,9 @@ When adding new documentation:
 
 ---
 
-**Total Documentation:** 14 comprehensive documents  
-**Total Pages:** ~150+ pages  
-**Status:** ✅ Ready for handoff to engineering team
+**Total Documentation:** 17 comprehensive documents  
+**Total Pages:** ~250+ pages  
+**Status:** ✅ Ready for Family Alpha Release (v0.3)
 
 ---
 
@@ -366,7 +398,7 @@ This documentation package includes everything needed to:
 
 ---
 
-**Version:** 0.2  
+**Version:** 0.3  
 **Last Updated:** October 26, 2025  
 **Maintained By:** Product & Engineering Team  
 **Repository:** https://github.com/jasonculbertson/milo-app
