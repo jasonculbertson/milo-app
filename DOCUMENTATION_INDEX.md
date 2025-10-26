@@ -47,6 +47,14 @@ Complete documentation for the Milo AI assistant project - from product vision t
 ## 🎨 Design Specifications
 
 ### Visual Design
+- **[UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md)** - ⭐ **Airbnb-inspired design system**
+  - Large, clean buttons with shadows (56px min height)
+  - Simple card components with subtle depth
+  - Complete color palette & design tokens
+  - Typography scale optimized for seniors
+  - React Native component implementations
+  - Accessibility-first approach (WCAG AAA)
+
 - **[DESIGN_SPEC.md](DESIGN_SPEC.md)** - Complete UI/UX specification
   - Brand & color palette
   - Typography system
@@ -174,6 +182,7 @@ milo-app/
 │   ├── DECISION_NEEDED.md
 │   ├── SYSTEM_ARCHITECTURE.md
 │   ├── TECHNICAL_SPEC.md
+│   ├── UI_STYLE_GUIDE.md ⭐ NEW
 │   ├── DESIGN_SPEC.md
 │   ├── MOTION_SPEC.md
 │   ├── ONBOARDING_SPEC.md
@@ -213,15 +222,17 @@ milo-app/
 3. Make decision using [DECISION_NEEDED.md](DECISION_NEEDED.md)
 
 ### For Designers
-1. Read [DESIGN_SPEC.md](DESIGN_SPEC.md) - visual design system
-2. Review [MOTION_SPEC.md](MOTION_SPEC.md) - animations & interactions
-3. Reference [PRD.md](PRD.md) Section 5 - user journey
+1. **Start here:** [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md) - Airbnb-inspired components
+2. Read [DESIGN_SPEC.md](DESIGN_SPEC.md) - complete visual design system
+3. Review [MOTION_SPEC.md](MOTION_SPEC.md) - animations & interactions
+4. Reference [PRD.md](PRD.md) Section 5 - user journey
 
 ### For iOS Engineers
-1. Start with [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md) - API & implementation
-2. Review [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) - system design
-3. Reference [MOTION_SPEC.md](MOTION_SPEC.md) - SwiftUI examples
-4. Follow [SETUP_GUIDE.md](SETUP_GUIDE.md) - environment setup
+1. **Start here:** [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md) - React Native components
+2. Read [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md) - API & implementation
+3. Review [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) - system design
+4. Reference [MOTION_SPEC.md](MOTION_SPEC.md) - animation examples
+5. Follow [SETUP_GUIDE.md](SETUP_GUIDE.md) - environment setup
 
 ### For Backend Engineers
 1. Read [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md) - database & API specs
@@ -360,6 +371,7 @@ When adding new documentation:
 |----------|--------|--------------|--------------|
 | PRD.md | ✅ Complete | 2025-10-26 | 100% |
 | TECHNICAL_SPEC.md | ✅ Complete | 2025-10-26 | 100% |
+| UI_STYLE_GUIDE.md | ✅ Complete | 2025-10-26 | 100% |
 | DESIGN_SPEC.md | ✅ Complete | 2025-10-26 | 100% |
 | MOTION_SPEC.md | ✅ Complete | 2025-10-26 | 100% |
 | SYSTEM_ARCHITECTURE.md | ✅ Complete | 2025-10-26 | 100% |
@@ -378,8 +390,8 @@ When adding new documentation:
 
 ---
 
-**Total Documentation:** 17 comprehensive documents  
-**Total Pages:** ~250+ pages  
+**Total Documentation:** 18 comprehensive documents  
+**Total Pages:** ~270+ pages  
 **Status:** ✅ Ready for Family Alpha Release (v0.3)
 
 ---
