@@ -152,6 +152,24 @@ notification_time: '08:00:00',  // Change to desired time
 Edit `app.json` for app name and styling
 Edit screen files for colors and layout
 
+## 📚 Documentation
+
+### Getting Started
+- **[NEXT_STEPS.md](NEXT_STEPS.md)** - Quick start guide (deploy in 5 minutes)
+- **[SETUP_GUIDE.md](SETUP_GUIDE.md)** - Detailed setup instructions
+- **[EAS_SETUP.md](EAS_SETUP.md)** - Building and deployment guide
+
+### Planning & Vision
+- **[PRD.md](PRD.md)** - Complete Product Requirements Document
+- **[SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)** - Technical architecture with diagrams
+- **[MIGRATION_PLAN.md](MIGRATION_PLAN.md)** - Roadmap from MVP to full product
+- **[DECISION_NEEDED.md](DECISION_NEEDED.md)** - Ship MVP now vs. build full PRD
+
+### Reference
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Current MVP architecture details
+- **[GITHUB_SETUP.md](GITHUB_SETUP.md)** - Repository and version control guide
+- **[QUICK_START.md](QUICK_START.md)** - Fast reference card
+
 ## 📂 Project Structure
 
 ```
