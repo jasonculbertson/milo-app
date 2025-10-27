@@ -1,29 +1,46 @@
-// Milo Design System - Airbnb-inspired theme
-// Based on UI_STYLE_GUIDE.md
+// Milo Design System - Calm & Senior-Friendly Theme
+// Based on DESIGN_SPEC.md - Warm, trustworthy, accessible
 
 export const colors = {
-  // Brand
-  primary: '#FF5A5F',
-  primaryDark: '#E04449',
-  primaryLight: '#FF787C',
+  // Brand - Calm Blue (from DESIGN_SPEC.md)
+  primary: '#6B8AFF',        // Main brand color - trustworthy, calming
+  primaryDark: '#5B7AEF',    // Darker variant for contrast
+  primaryLight: '#E0E9FF',   // Light tint for backgrounds
+  primary50: '#F0F4FF',      // Lightest tint
+  primary600: '#5B7AEF',
+  primary700: '#4B6ADF',
   
-  // Neutrals
-  gray50: '#F7F7F7',
-  gray100: '#EBEBEB',
-  gray200: '#DDDDDD',
-  gray300: '#B0B0B0',
+  // Accent - Soft Gold (for positive confirmations)
+  accent: '#FFD67B',         // Main accent color
+  accentLight: '#FFF9E6',    // Light tint
+  accent50: '#FFF9E6',
+  accent600: '#FFC75B',
+  
+  // Neutrals - High contrast for readability (WCAG AAA)
+  gray50: '#F6F6F6',         // Light grey background
+  gray100: '#EEEEEE',
+  gray200: '#D0D0D0',        // Medium grey
+  gray300: '#D0D0D0',
+  gray500: '#888888',
   gray600: '#717171',
+  gray700: '#444444',        // Dark grey for text
   gray800: '#222222',
+  gray900: '#222222',
+  background: '#F6F6F6',
   
-  // Semantic
-  success: '#00A699',
-  warning: '#FC642D',
-  error: '#C13515',
-  info: '#008489',
+  // Semantic - Gentle, non-clinical colors
+  success: '#69C181',        // Green for "I'm OK"
+  successLight: '#E8F5EC',
+  warning: '#FFB84D',        // Soft orange for warnings
+  warningLight: '#FFF3E6',
+  error: '#FF6A6A',          // Gentle red for alerts
+  errorLight: '#FFE8E6',
+  info: '#6B8AFF',           // Uses primary blue
+  infoLight: '#F0F4FF',
   
   // Backgrounds
   white: '#FFFFFF',
-  offWhite: '#F7F7F7',
+  offWhite: '#F6F6F6',
   black: '#000000',
 };
 

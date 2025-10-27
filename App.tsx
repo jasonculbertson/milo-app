@@ -8,6 +8,10 @@ import { SeniorHomeScreen } from './src/screens/SeniorHomeScreen';
 import { FamilyDashboardScreen } from './src/screens/FamilyDashboardScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { VoiceAssistantScreen } from './src/screens/VoiceAssistantScreen';
+import { ExplainDocumentScreen } from './src/screens/ExplainDocumentScreen';
+import { RemindersScreen } from './src/screens/RemindersScreen';
+import { EmergencyContactsScreen } from './src/screens/EmergencyContactsScreen';
 import { getCurrentUser } from './src/config/storage';
 import { colors } from './src/theme';
 
@@ -42,6 +46,33 @@ function SeniorTabs() {
         options={{
           tabBarIcon: ({ color }) => (
             <Text style={{ fontSize: 24 }}>🏠</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Milo"
+        component={VoiceAssistantScreen}
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 24 }}>💙</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Explain"
+        component={ExplainDocumentScreen}
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 24 }}>📄</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Reminders"
+        component={RemindersScreen}
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 24 }}>⏰</Text>
           ),
         }}
       />
@@ -154,11 +185,28 @@ export default function App() {
               )}
             </Stack.Screen>
           ) : (
-            <Stack.Screen name="Main">
-              {() =>
-                userRole === 'family' ? <FamilyTabs /> : <SeniorTabs />
-              }
-            </Stack.Screen>
+            <>
+              <Stack.Screen name="Main">
+                {() =>
+                  userRole === 'family' ? <FamilyTabs /> : <SeniorTabs />
+                }
+              </Stack.Screen>
+              
+              {/* Modal Screens */}
+              <Stack.Screen
+                name="EmergencyContacts"
+                component={EmergencyContactsScreen}
+                options={{
+                  presentation: 'modal',
+                  headerShown: true,
+                  headerTitle: 'Emergency Contacts',
+                  headerTitleStyle: {
+                    fontSize: 20,
+                    fontWeight: '600',
+                  },
+                }}
+              />
+            </>
           )}
         </Stack.Navigator>
       </NavigationContainer>

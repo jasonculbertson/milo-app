@@ -9,6 +9,7 @@ interface ToastProps {
   type?: 'success' | 'error' | 'info';
   duration?: number;
   onHide?: () => void;
+  onDismiss?: () => void; // Alias for onHide
 }
 
 export function Toast({
@@ -17,7 +18,9 @@ export function Toast({
   type = 'success',
   duration = 3000,
   onHide,
+  onDismiss,
 }: ToastProps) {
+  const handleHide = onHide || onDismiss;
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(20)).current;
 
@@ -60,13 +63,13 @@ export function Toast({
             useNativeDriver: true,
           }),
         ]).start(() => {
-          onHide?.();
+          handleHide?.();
         });
       }, duration);
 
       return () => clearTimeout(timer);
     }
-  }, [visible, type, duration, onHide, opacity, translateY]);
+  }, [visible, type, duration, handleHide, opacity, translateY]);
 
   if (!visible) return null;
 

@@ -16,19 +16,38 @@ import {
   getCheckIns,
   getFamilyMembers,
   saveCurrentUser,
+  getSettings,
 } from '../config/storage';
 import { sendPushNotificationToToken } from '../services/notificationService';
+import * as Haptics from 'expo-haptics';
+import { getUserFriendlyError, withRetry } from '../utils/errorHandling';
 
 export default function CheckInScreen() {
   const { user, signOut, refreshUser } = useAuth();
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
   const [loading, setLoading] = useState(true);
   const [recentCheckIns, setRecentCheckIns] = useState<CheckIn[]>([]);
+  const [hapticEnabled, setHapticEnabled] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    checkTodayStatus();
-    loadRecentCheckIns();
+    initializeScreen();
   }, []);
+
+  const initializeScreen = async () => {
+    try {
+      // Load settings
+      const settings = await getSettings();
+      setHapticEnabled(settings.hapticFeedbackEnabled);
+      
+      // Load check-in data
+      await checkTodayStatus();
+      await loadRecentCheckIns();
+    } catch (error) {
+      console.error('Error initializing screen:', error);
+      Alert.alert('Error', 'Could not load check-in data');
+    }
+  };
 
   const checkTodayStatus = async () => {
     if (!user) return;
@@ -38,6 +57,7 @@ export default function CheckInScreen() {
       setHasCheckedInToday(!!todayCheckIn);
     } catch (error) {
       console.error('Error checking today status:', error);
+      // Don't show error to user, just log it
     } finally {
       setLoading(false);
     }
@@ -54,14 +74,27 @@ export default function CheckInScreen() {
       setRecentCheckIns(userCheckIns);
     } catch (error) {
       console.error('Error loading check-ins:', error);
+      // Don't show error to user for history loading
     }
   };
 
   const handleCheckIn = async (status: 'ok' | 'need_help') => {
     if (!user) return;
+    if (submitting) return; // Prevent double-tap
 
     try {
-      // Create check-in
+      setSubmitting(true);
+      
+      // Haptic feedback
+      if (hapticEnabled) {
+        await Haptics.impactAsync(
+          status === 'ok' 
+            ? Haptics.ImpactFeedbackStyle.Medium 
+            : Haptics.ImpactFeedbackStyle.Heavy
+        );
+      }
+
+      // Create check-in with retry logic
       const checkIn: CheckIn = {
         id: generateId(),
         user_id: user.id,
@@ -71,7 +104,10 @@ export default function CheckInScreen() {
         created_at: new Date().toISOString(),
       };
 
-      await saveCheckIn(checkIn);
+      await withRetry(() => saveCheckIn(checkIn), {
+        maxAttempts: 3,
+        delayMs: 500,
+      });
 
       // Get family members and send notifications
       const familyMembers = await getFamilyMembers();
@@ -83,6 +119,8 @@ export default function CheckInScreen() {
           : `${user.name} indicated they need help. Please check on them.`;
 
       // Send push notifications to family members who have tokens
+      // Don't fail the check-in if notifications fail
+      let notificationsSent = 0;
       for (const member of familyMembers) {
         if (member.id !== user.id && member.expo_push_token) {
           try {
@@ -97,24 +135,42 @@ export default function CheckInScreen() {
                 from_user_name: user.name,
               }
             );
+            notificationsSent++;
           } catch (error) {
             console.error(`Error sending notification to ${member.name}:`, error);
+            // Continue with other notifications
           }
         }
       }
 
       setHasCheckedInToday(true);
-      Alert.alert(
-        'Success!',
-        status === 'ok'
-          ? "Your family has been notified that you're doing well!"
-          : 'Your family has been notified that you need help.'
-      );
+      
+      // Success haptic
+      if (hapticEnabled) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      
+      const successMessage = status === 'ok'
+        ? notificationsSent > 0
+          ? `Great, ${user.name}! Your family has been notified.`
+          : `Check-in saved! (Notifications may be delayed)`
+        : notificationsSent > 0
+          ? `Alert sent to your family. They'll reach out soon.`
+          : `Alert saved! (Notifications may be delayed)`;
+      
+      Alert.alert('Success!', successMessage);
 
       await loadRecentCheckIns();
     } catch (error) {
-      Alert.alert('Error', 'Failed to check in. Please try again.');
       console.error('Error checking in:', error);
+      const friendlyMessage = getUserFriendlyError(error as Error);
+      Alert.alert('Error', friendlyMessage);
+      
+      if (hapticEnabled) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -143,17 +199,35 @@ export default function CheckInScreen() {
           </Text>
 
           <TouchableOpacity
-            style={styles.checkInButton}
+            style={[styles.checkInButton, submitting && styles.buttonDisabled]}
             onPress={() => handleCheckIn('ok')}
+            disabled={submitting}
+            accessible={true}
+            accessibilityLabel="I'm OK"
+            accessibilityHint="Double tap to let your family know you're doing well today"
+            accessibilityRole="button"
           >
-            <Text style={styles.checkInButtonText}>I'm OK ✅</Text>
+            {submitting ? (
+              <ActivityIndicator size="large" color="white" />
+            ) : (
+              <Text style={styles.checkInButtonText}>I'm OK ✅</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.helpButton}
+            style={[styles.helpButton, submitting && styles.buttonDisabled]}
             onPress={() => handleCheckIn('need_help')}
+            disabled={submitting}
+            accessible={true}
+            accessibilityLabel="I need help"
+            accessibilityHint="Double tap to alert your emergency contacts that you need help"
+            accessibilityRole="button"
           >
-            <Text style={styles.helpButtonText}>I Need Help ⚠️</Text>
+            {submitting ? (
+              <ActivityIndicator size="large" color="white" />
+            ) : (
+              <Text style={styles.helpButtonText}>I Need Help ⚠️</Text>
+            )}
           </TouchableOpacity>
         </View>
       ) : (
@@ -311,5 +385,8 @@ const styles = StyleSheet.create({
   historyStatus: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });

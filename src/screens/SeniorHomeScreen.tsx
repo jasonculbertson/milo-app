@@ -5,13 +5,15 @@ import {
   View,
   Text,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import { PrimaryButton, SecondaryButton } from '../components/Button';
 import { StatusCard, AlertCard } from '../components/Card';
 import { Toast } from '../components/Toast';
 import { colors, spacing, typography } from '../theme';
-import { addCheckIn, getCheckIns } from '../config/storage';
+import { addCheckIn, getCheckIns, getCurrentUser, getSettings } from '../config/storage';
 import * as Haptics from 'expo-haptics';
+import { getUserFriendlyError } from '../utils/errorHandling';
 
 export function SeniorHomeScreen() {
   const [lastCheckIn, setLastCheckIn] = useState<string>('');
@@ -19,58 +21,136 @@ export function SeniorHomeScreen() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [userName, setUserName] = useState('');
+  const [hapticEnabled, setHapticEnabled] = useState(true);
 
   useEffect(() => {
     loadCheckInData();
   }, []);
 
   const loadCheckInData = async () => {
-    const checkins = await getCheckIns();
-    if (checkins.length > 0) {
-      const latest = checkins[checkins.length - 1];
-      setLastCheckIn(formatTimestamp(latest.timestamp));
-      setStreak(calculateStreak(checkins));
+    try {
+      setIsLoadingData(true);
+      
+      // Load user info
+      const user = await getCurrentUser();
+      if (user) {
+        setUserName(user.name);
+      }
+      
+      // Load settings
+      const settings = await getSettings();
+      setHapticEnabled(settings.hapticFeedbackEnabled);
+      
+      // Load check-in data
+      const checkins = await getCheckIns();
+      if (checkins.length > 0) {
+        const latest = checkins[checkins.length - 1];
+        setLastCheckIn(formatTimestamp(latest.timestamp));
+        setStreak(calculateStreak(checkins));
+      }
+    } catch (error) {
+      console.error('Error loading check-in data:', error);
+      setToastMessage('Could not load check-in history');
+      setShowToast(true);
+    } finally {
+      setIsLoadingData(false);
     }
   };
 
   const handleCheckIn = async () => {
-    setLoading(true);
-    
-    // Haptic feedback
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      setLoading(true);
+      
+      const user = await getCurrentUser();
+      if (!user) {
+        setToastMessage('Please sign in first');
+        setShowToast(true);
+        return;
+      }
+      
+      // Haptic feedback
+      if (hapticEnabled) {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
 
-    // Save check-in
-    await addCheckIn({
-      id: Date.now().toString(),
-      userId: 'current-user', // TODO: Get from auth context
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-    });
+      // Save check-in
+      await addCheckIn({
+        id: Date.now().toString(),
+        userId: user.id,
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+      });
 
-    // Update UI
-    await loadCheckInData();
-    setLoading(false);
+      // Update UI
+      await loadCheckInData();
 
-    // Show success message
-    setToastMessage('Great! Your family has been notified.');
-    setShowToast(true);
+      // Show success message with personalization
+      setToastMessage(`Great job, ${userName}! Family notified.`);
+      setShowToast(true);
 
-    // Another haptic for success
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Success haptic
+      if (hapticEnabled) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      console.error('Error during check-in:', error);
+      const friendlyMessage = getUserFriendlyError(error as Error);
+      setToastMessage(friendlyMessage);
+      setShowToast(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleNeedHelp = () => {
-    // TODO: Implement help escalation
-    setToastMessage('Notifying your family now...');
-    setShowToast(true);
+  const handleNeedHelp = async () => {
+    try {
+      if (hapticEnabled) {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      }
+      
+      // TODO: Implement proper emergency escalation
+      // For now, show message
+      setToastMessage('Alerting your emergency contacts...');
+      setShowToast(true);
+      
+      // Save as help check-in
+      const user = await getCurrentUser();
+      if (user) {
+        await addCheckIn({
+          id: Date.now().toString(),
+          userId: user.id,
+          status: 'help',
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (error) {
+      console.error('Error requesting help:', error);
+      setToastMessage('Failed to send alert. Please call directly.');
+      setShowToast(true);
+    }
   };
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning!';
-    if (hour < 18) return 'Good afternoon!';
-    return 'Good evening!';
+    const name = userName ? `, ${userName}` : '';
+    if (hour < 12) return `Good morning${name}!`;
+    if (hour < 18) return `Good afternoon${name}!`;
+    return `Good evening${name}!`;
   };
+
+  // Show loading state
+  if (isLoadingData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -83,13 +163,24 @@ export function SeniorHomeScreen() {
 
         {/* Big Check-In Button */}
         <View style={styles.heroSection}>
-          <PrimaryButton onPress={handleCheckIn} loading={loading}>
+          <PrimaryButton 
+            onPress={handleCheckIn} 
+            loading={loading}
+            accessible={true}
+            accessibilityLabel="I'm OK today"
+            accessibilityHint="Double tap to let your family know you're doing well"
+            accessibilityRole="button"
+          >
             I'm OK Today
           </PrimaryButton>
           
           <SecondaryButton
             onPress={handleNeedHelp}
             style={styles.helpButton}
+            accessible={true}
+            accessibilityLabel="I need help"
+            accessibilityHint="Double tap to alert your emergency contacts"
+            accessibilityRole="button"
           >
             I Need Help
           </SecondaryButton>
@@ -289,6 +380,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.gray800,
     textAlign: 'center',
+  },
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: 16,
+    color: colors.gray600,
   },
 });
 

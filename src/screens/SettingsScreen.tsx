@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -7,13 +7,165 @@ import {
   StyleSheet,
   Switch,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../theme';
+import {
+  getPermissionsStatus,
+  requestPermissionWithExplanation,
+  showOpenSettingsAlert,
+  PermissionsStatus,
+  getPermissionName,
+  getPermissionDescription,
+} from '../services/permissionsService';
+import { startFallDetection, stopFallDetection } from '../services/fallDetectionService';
+import {
+  getSettings,
+  updateSettings,
+  getCurrentUser,
+  getEmergencyContacts,
+} from '../config/storage';
+import { Toast } from '../components/Toast';
+import * as Haptics from 'expo-haptics';
 
-export function SettingsScreen() {
+export function SettingsScreen({ navigation }: any) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [dailyReminder, setDailyReminder] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [fallDetectionEnabled, setFallDetectionEnabled] = useState(false);
+  const [hapticEnabled, setHapticEnabled] = useState(true);
+  const [voiceSpeed, setVoiceSpeed] = useState(1.0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [userName, setUserName] = useState('');
+  const [emergencyContactCount, setEmergencyContactCount] = useState(0);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [permissions, setPermissions] = useState<PermissionsStatus>({
+    notifications: false,
+    camera: false,
+    photos: false,
+    microphone: false,
+    motion: false,
+  });
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Load permissions
+      const permStatus = await getPermissionsStatus();
+      setPermissions(permStatus);
+
+      // Load user info
+      const user = await getCurrentUser();
+      if (user) {
+        setUserName(user.name);
+      }
+
+      // Load settings
+      const settings = await getSettings();
+      setNotificationsEnabled(settings.notificationsEnabled);
+      setSoundEnabled(settings.soundEnabled);
+      setFallDetectionEnabled(settings.fallDetectionEnabled);
+      setHapticEnabled(settings.hapticFeedbackEnabled);
+      setVoiceSpeed(settings.voiceSpeed);
+
+      // Load emergency contacts count
+      const contacts = await getEmergencyContacts();
+      setEmergencyContactCount(contacts.length);
+      
+    } catch (error) {
+      console.error('Error loading settings:', error);
+      setToastMessage('Failed to load settings');
+      setShowToast(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFallDetectionToggle = async (enabled: boolean) => {
+    if (hapticEnabled) {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    if (enabled) {
+      const success = await startFallDetection();
+      setFallDetectionEnabled(success);
+      if (success) {
+        await updateSettings({ fallDetectionEnabled: true });
+        setToastMessage('Fall detection enabled');
+      } else {
+        setToastMessage('Could not enable fall detection');
+      }
+      setShowToast(true);
+    } else {
+      stopFallDetection();
+      setFallDetectionEnabled(false);
+      await updateSettings({ fallDetectionEnabled: false });
+      setToastMessage('Fall detection disabled');
+      setShowToast(true);
+    }
+  };
+
+  const handleNotificationsToggle = async (enabled: boolean) => {
+    if (hapticEnabled) {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setNotificationsEnabled(enabled);
+    await updateSettings({ notificationsEnabled: enabled });
+  };
+
+  const handleSoundToggle = async (enabled: boolean) => {
+    if (hapticEnabled) {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setSoundEnabled(enabled);
+    await updateSettings({ soundEnabled: enabled });
+  };
+
+  const handleHapticToggle = async (enabled: boolean) => {
+    if (enabled) {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setHapticEnabled(enabled);
+    await updateSettings({ hapticFeedbackEnabled: enabled });
+  };
+
+  const handlePermissionRequest = async (
+    permission: 'notifications' | 'camera' | 'photos' | 'microphone'
+  ) => {
+    const granted = await requestPermissionWithExplanation(permission);
+    if (granted) {
+      await loadSettings();
+    }
+  };
+
+  const handleEmergencyContactsPress = () => {
+    // Navigation to emergency contacts screen
+    // In production, this would use navigation
+    if (navigation) {
+      navigation.navigate('EmergencyContacts');
+    } else {
+      setToastMessage('Emergency contacts feature available in full app');
+      setShowToast(true);
+    }
+  };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading settings...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -28,15 +180,11 @@ export function SettingsScreen() {
           
           <SettingRow
             label="Name"
-            value="Mom"
-            onPress={() => {}}
-            showArrow
-          />
-          
-          <SettingRow
-            label="Phone"
-            value="+1 (555) 123-4567"
-            onPress={() => {}}
+            value={userName || 'Not set'}
+            onPress={() => {
+              setToastMessage('Edit profile coming soon');
+              setShowToast(true);
+            }}
             showArrow
           />
         </View>
@@ -48,46 +196,82 @@ export function SettingsScreen() {
           <SettingToggle
             label="Enable notifications"
             value={notificationsEnabled}
-            onValueChange={setNotificationsEnabled}
-          />
-          
-          <SettingToggle
-            label="Daily reminder"
-            value={dailyReminder}
-            onValueChange={setDailyReminder}
-            disabled={!notificationsEnabled}
-          />
-          
-          <SettingRow
-            label="Reminder time"
-            value="9:00 AM"
-            onPress={() => {}}
-            showArrow
-            disabled={!notificationsEnabled || !dailyReminder}
+            onValueChange={handleNotificationsToggle}
           />
           
           <SettingToggle
             label="Sound"
             value={soundEnabled}
-            onValueChange={setSoundEnabled}
+            onValueChange={handleSoundToggle}
             disabled={!notificationsEnabled}
           />
         </View>
 
-        {/* Family Section */}
+        {/* Safety & Emergency Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Family</Text>
+          <Text style={styles.sectionTitle}>Safety & Emergency</Text>
           
           <SettingRow
-            label="Connected family members"
-            value="2"
-            onPress={() => {}}
+            label="Emergency contacts"
+            value={emergencyContactCount > 0 ? `${emergencyContactCount}` : 'None'}
+            onPress={handleEmergencyContactsPress}
+            showArrow
+          />
+        </View>
+
+        {/* Features Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Features</Text>
+          
+          <SettingToggle
+            label="Fall detection"
+            value={fallDetectionEnabled}
+            onValueChange={handleFallDetectionToggle}
+            disabled={!permissions.motion}
+          />
+          
+          {!permissions.motion && (
+            <Text style={styles.warningText}>
+              Fall detection requires motion sensors permission
+            </Text>
+          )}
+
+          <SettingToggle
+            label="Haptic feedback"
+            value={hapticEnabled}
+            onValueChange={handleHapticToggle}
+          />
+        </View>
+
+        {/* Permissions Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Permissions</Text>
+          
+          <SettingRow
+            label={getPermissionName('notifications')}
+            value={permissions.notifications ? 'Enabled' : 'Disabled'}
+            onPress={() => permissions.notifications ? showOpenSettingsAlert('notifications') : handlePermissionRequest('notifications')}
             showArrow
           />
           
           <SettingRow
-            label="Invite family member"
-            onPress={() => {}}
+            label={getPermissionName('microphone')}
+            value={permissions.microphone ? 'Enabled' : 'Disabled'}
+            onPress={() => permissions.microphone ? showOpenSettingsAlert('microphone') : handlePermissionRequest('microphone')}
+            showArrow
+          />
+          
+          <SettingRow
+            label={getPermissionName('camera')}
+            value={permissions.camera ? 'Enabled' : 'Disabled'}
+            onPress={() => permissions.camera ? showOpenSettingsAlert('camera') : handlePermissionRequest('camera')}
+            showArrow
+          />
+          
+          <SettingRow
+            label={getPermissionName('photos')}
+            value={permissions.photos ? 'Enabled' : 'Disabled'}
+            onPress={() => permissions.photos ? showOpenSettingsAlert('photos') : handlePermissionRequest('photos')}
             showArrow
           />
         </View>
@@ -127,11 +311,24 @@ export function SettingsScreen() {
 
         {/* Danger Zone */}
         <View style={styles.section}>
-          <TouchableOpacity style={styles.dangerButton}>
+          <TouchableOpacity
+            style={styles.dangerButton}
+            onPress={() => {
+              setToastMessage('Sign out coming soon');
+              setShowToast(true);
+            }}
+          >
             <Text style={styles.dangerButtonText}>Sign Out</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Toast */}
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        onDismiss={() => setShowToast(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -149,14 +346,30 @@ function SettingRow({
   showArrow?: boolean;
   disabled?: boolean;
 }) {
-  const Component = onPress ? TouchableOpacity : View;
+  if (onPress) {
+    return (
+      <TouchableOpacity
+        style={[styles.settingRow, disabled && styles.settingRowDisabled]}
+        onPress={onPress}
+        disabled={disabled}
+      >
+        <Text style={[styles.settingLabel, disabled && styles.settingLabelDisabled]}>
+          {label}
+        </Text>
+        <View style={styles.settingRight}>
+          {value && (
+            <Text style={[styles.settingValue, disabled && styles.settingValueDisabled]}>
+              {value}
+            </Text>
+          )}
+          {showArrow && <Text style={styles.settingArrow}>›</Text>}
+        </View>
+      </TouchableOpacity>
+    );
+  }
 
   return (
-    <Component
-      style={[styles.settingRow, disabled && styles.settingRowDisabled]}
-      onPress={onPress}
-      disabled={disabled}
-    >
+    <View style={[styles.settingRow, disabled && styles.settingRowDisabled]}>
       <Text style={[styles.settingLabel, disabled && styles.settingLabelDisabled]}>
         {label}
       </Text>
@@ -168,7 +381,7 @@ function SettingRow({
         )}
         {showArrow && <Text style={styles.settingArrow}>›</Text>}
       </View>
-    </Component>
+    </View>
   );
 }
 
@@ -292,6 +505,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.error,
+  },
+
+  warningText: {
+    fontSize: 14,
+    color: colors.warning,
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: 16,
+    color: colors.gray600,
   },
 });
 

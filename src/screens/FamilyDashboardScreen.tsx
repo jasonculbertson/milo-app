@@ -6,388 +6,579 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
-import { StatusCard, AlertCard } from '../components/Card';
 import { colors, spacing, typography, borderRadius, shadows } from '../theme';
-import { getCheckIns } from '../config/storage';
+import {
+  getCurrentUser,
+  getCheckIns,
+  getFallEvents,
+  getReminders,
+  getMessages,
+  CheckIn,
+  FallEvent,
+  Reminder,
+  Message,
+} from '../config/storage';
+import * as Haptics from 'expo-haptics';
 
-interface SeniorStatus {
-  id: string;
-  name: string;
-  lastCheckIn: string;
-  status: 'ok' | 'missed' | 'alert';
-  streak: number;
-}
-
-export function FamilyDashboardScreen() {
-  const [seniors, setSeniors] = useState<SeniorStatus[]>([]);
+export function FamilyDashboardScreen({ navigation }: any) {
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [seniorName, setSeniorName] = useState('');
+  const [lastCheckIn, setLastCheckIn] = useState<CheckIn | null>(null);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    checkInsThisWeek: 0,
+    remindersActive: 0,
+    fallAlertsThisWeek: 0,
+    lastActivity: '',
+  });
 
   useEffect(() => {
-    loadSeniorData();
+    loadDashboardData();
   }, []);
 
-  const loadSeniorData = async () => {
-    // TODO: Load from actual family links
-    // For now, mock data
-    const mockSeniors: SeniorStatus[] = [
-      {
-        id: '1',
-        name: 'Mom',
-        lastCheckIn: '2 hours ago',
-        status: 'ok',
-        streak: 5,
-      },
-    ];
-    
-    setSeniors(mockSeniors);
+  const loadDashboardData = async () => {
+    try {
+      setIsLoading(true);
+
+      // Get current user (senior)
+      const user = await getCurrentUser();
+      if (user) {
+        setSeniorName(user.name);
+      }
+
+      // Get recent check-ins
+      const checkIns = await getCheckIns();
+      const sortedCheckIns = checkIns.sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+      
+      if (sortedCheckIns.length > 0) {
+        setLastCheckIn(sortedCheckIns[0]);
+      }
+
+      // Calculate stats
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+      const checkInsThisWeek = checkIns.filter(c => 
+        new Date(c.timestamp) > oneWeekAgo
+      ).length;
+
+      // Get fall events
+      const fallEvents = await getFallEvents();
+      const fallAlertsThisWeek = fallEvents.filter(f => 
+        new Date(f.timestamp) > oneWeekAgo && f.type === 'fall_detected'
+      ).length;
+
+      // Get reminders
+      const reminders = await getReminders();
+      const remindersActive = reminders.filter(r => r.status === 'scheduled').length;
+
+      // Get messages for recent activity
+      const messages = await getMessages(user?.id || '');
+      
+      // Combine recent activity
+      const activity: any[] = [];
+      
+      // Add recent check-ins (last 5)
+      sortedCheckIns.slice(0, 5).forEach(checkIn => {
+        activity.push({
+          type: 'checkin',
+          timestamp: checkIn.timestamp,
+          status: checkIn.status,
+          icon: checkIn.status === 'ok' ? '✅' : '⚠️',
+          title: checkIn.status === 'ok' ? 'Checked in - Doing well' : 'Requested help',
+          time: formatTimeAgo(checkIn.timestamp),
+        });
+      });
+
+      // Add recent fall events
+      fallEvents.slice(0, 3).forEach(event => {
+        activity.push({
+          type: 'fall',
+          timestamp: event.timestamp,
+          icon: event.type === 'user_ok' ? '✓' : '🚨',
+          title: event.type === 'fall_detected' ? 'Fall detected' : 
+                 event.type === 'fall_confirmed' ? 'Fall confirmed - No response' : 
+                 'Reported OK after fall',
+          time: formatTimeAgo(event.timestamp),
+        });
+      });
+
+      // Add recent messages (last 3)
+      messages.slice(-3).forEach(msg => {
+        if (msg.role === 'user') {
+          activity.push({
+            type: 'message',
+            timestamp: msg.timestamp,
+            icon: '💬',
+            title: `Asked: "${msg.text.substring(0, 50)}${msg.text.length > 50 ? '...' : ''}"`,
+            time: formatTimeAgo(msg.timestamp),
+          });
+        }
+      });
+
+      // Sort by timestamp
+      activity.sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+
+      setRecentActivity(activity.slice(0, 10));
+
+      setStats({
+        checkInsThisWeek,
+        remindersActive,
+        fallAlertsThisWeek,
+        lastActivity: lastCheckIn ? formatTimeAgo(lastCheckIn.timestamp) : 'No activity yet',
+      });
+
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
   };
+
+  const handleRefresh = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsRefreshing(true);
+    await loadDashboardData();
+  };
+
+  const formatTimeAgo = (timestamp: string): string => {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diffMs = now.getTime() - time.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return time.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading dashboard...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+          />
+        }
+      >
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Family Dashboard</Text>
-          <Text style={styles.subtitle}>Everyone you're connected with</Text>
+          <Text style={styles.subtitle}>
+            Monitoring {seniorName || 'your loved one'}
+          </Text>
         </View>
 
-        {/* Summary Card */}
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryNumber}>{seniors.length}</Text>
-              <Text style={styles.summaryLabel}>Family Members</Text>
-            </View>
-            
-            <View style={styles.summaryDivider} />
-            
-            <View style={styles.summaryItem}>
-              <Text style={[styles.summaryNumber, { color: colors.success }]}>
-                {seniors.filter(s => s.status === 'ok').length}
-              </Text>
-              <Text style={styles.summaryLabel}>Checked In Today</Text>
-            </View>
+        {/* Status Card */}
+        <View style={styles.statusCard}>
+          <View style={styles.statusHeader}>
+            <Text style={styles.statusTitle}>Current Status</Text>
+            {lastCheckIn && (
+              <View style={[
+                styles.statusBadge,
+                lastCheckIn.status === 'ok' ? styles.statusBadgeOk : styles.statusBadgeHelp
+              ]}>
+                <Text style={styles.statusBadgeText}>
+                  {lastCheckIn.status === 'ok' ? '✓ OK' : '⚠️ Needs Help'}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.statusText}>
+            {lastCheckIn 
+              ? `Last checked in ${formatTimeAgo(lastCheckIn.timestamp)}`
+              : 'No check-ins yet'}
+          </Text>
+        </View>
+
+        {/* Quick Stats */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{stats.checkInsThisWeek}</Text>
+            <Text style={styles.statLabel}>Check-ins</Text>
+            <Text style={styles.statPeriod}>this week</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{stats.remindersActive}</Text>
+            <Text style={styles.statLabel}>Active</Text>
+            <Text style={styles.statPeriod}>reminders</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Text style={[
+              styles.statNumber,
+              stats.fallAlertsThisWeek > 0 && styles.statNumberAlert
+            ]}>
+              {stats.fallAlertsThisWeek}
+            </Text>
+            <Text style={styles.statLabel}>Fall alerts</Text>
+            <Text style={styles.statPeriod}>this week</Text>
           </View>
         </View>
 
-        {/* Senior Cards */}
+        {/* Quick Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Family Members</Text>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
           
-          {seniors.map((senior) => (
-            <SeniorCard key={senior.id} senior={senior} />
-          ))}
-        </View>
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => {
+              // TODO: Implement call functionality
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            }}
+            accessible={true}
+            accessibilityLabel={`Call ${seniorName}`}
+            accessibilityRole="button"
+          >
+            <View style={styles.actionIcon}>
+              <Text style={styles.actionIconText}>📞</Text>
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Call {seniorName}</Text>
+              <Text style={styles.actionDescription}>Check in with a phone call</Text>
+            </View>
+            <Text style={styles.actionArrow}>›</Text>
+          </TouchableOpacity>
 
-        {/* Add Family Member */}
-        <TouchableOpacity style={styles.addButton}>
-          <Text style={styles.addButtonText}>+ Add Family Member</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => {
+              // TODO: Implement message functionality
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            }}
+            accessible={true}
+            accessibilityLabel="Send a message"
+            accessibilityRole="button"
+          >
+            <View style={styles.actionIcon}>
+              <Text style={styles.actionIconText}>💬</Text>
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Send Message</Text>
+              <Text style={styles.actionDescription}>Send a quick text message</Text>
+            </View>
+            <Text style={styles.actionArrow}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => {
+              if (navigation) {
+                navigation.navigate('EmergencyContacts');
+              }
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            }}
+            accessible={true}
+            accessibilityLabel="Manage emergency contacts"
+            accessibilityRole="button"
+          >
+            <View style={styles.actionIcon}>
+              <Text style={styles.actionIconText}>🚨</Text>
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Emergency Contacts</Text>
+              <Text style={styles.actionDescription}>Manage alert settings</Text>
+            </View>
+            <Text style={styles.actionArrow}>›</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Recent Activity */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Activity</Text>
           
-          <ActivityItem
-            icon="✓"
-            title="Mom checked in"
-            time="2 hours ago"
-            type="success"
-          />
-          
-          <ActivityItem
-            icon="💊"
-            title="Medication reminder completed"
-            time="Yesterday"
-            type="info"
-          />
+          {recentActivity.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>📊</Text>
+              <Text style={styles.emptyText}>No recent activity</Text>
+            </View>
+          ) : (
+            <View style={styles.activityList}>
+              {recentActivity.map((item, index) => (
+                <View key={index} style={styles.activityItem}>
+                  <View style={styles.activityIcon}>
+                    <Text style={styles.activityIconText}>{item.icon}</Text>
+                  </View>
+                  <View style={styles.activityContent}>
+                    <Text style={styles.activityTitle}>{item.title}</Text>
+                    <Text style={styles.activityTime}>{item.time}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function SeniorCard({ senior }: { senior: SeniorStatus }) {
-  const statusColor =
-    senior.status === 'ok'
-      ? colors.success
-      : senior.status === 'alert'
-      ? colors.error
-      : colors.warning;
-
-  const statusText =
-    senior.status === 'ok'
-      ? 'All good'
-      : senior.status === 'alert'
-      ? 'Needs attention'
-      : 'No check-in today';
-
-  return (
-    <TouchableOpacity style={styles.seniorCard}>
-      <View style={styles.seniorCardHeader}>
-        <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-          <Text style={styles.avatarText}>{senior.name[0]}</Text>
-        </View>
-        
-        <View style={styles.seniorInfo}>
-          <Text style={styles.seniorName}>{senior.name}</Text>
-          <Text style={styles.seniorCheckIn}>
-            Last check-in: {senior.lastCheckIn}
-          </Text>
-        </View>
-        
-        <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-      </View>
-      
-      <View style={styles.seniorStats}>
-        <View style={styles.stat}>
-          <Text style={styles.statValue}>🔥 {senior.streak} days</Text>
-          <Text style={styles.statLabel}>Streak</Text>
-        </View>
-        
-        <View style={styles.stat}>
-          <Text style={[styles.statValue, { color: statusColor }]}>
-            {statusText}
-          </Text>
-          <Text style={styles.statLabel}>Status</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-function ActivityItem({
-  icon,
-  title,
-  time,
-  type,
-}: {
-  icon: string;
-  title: string;
-  time: string;
-  type: 'success' | 'info' | 'warning';
-}) {
-  const iconColor =
-    type === 'success'
-      ? colors.success
-      : type === 'warning'
-      ? colors.warning
-      : colors.info;
-
-  return (
-    <View style={styles.activityItem}>
-      <View style={[styles.activityIcon, { backgroundColor: `${iconColor}20` }]}>
-        <Text style={styles.activityIconText}>{icon}</Text>
-      </View>
-      
-      <View style={styles.activityContent}>
-        <Text style={styles.activityTitle}>{title}</Text>
-        <Text style={styles.activityTime}>{time}</Text>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.gray50,
+    backgroundColor: colors.background,
   },
-  
+
   scrollView: {
     flex: 1,
   },
-  
+
   content: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xxl,
+    padding: spacing.lg,
   },
-  
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: 16,
+    color: colors.gray600,
+  },
+
   header: {
-    marginTop: spacing.xl,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xl,
   },
-  
+
   title: {
     ...typography.h1,
-    marginBottom: spacing.sm,
+    color: colors.gray900,
+    marginBottom: spacing.xs,
   },
-  
+
   subtitle: {
-    ...typography.bodyLarge,
+    ...typography.body,
+    color: colors.gray600,
   },
-  
-  summaryCard: {
+
+  statusCard: {
     backgroundColor: colors.white,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
-    marginBottom: spacing.xl,
-    ...shadows.sm,
+    marginBottom: spacing.lg,
+    ...shadows.md,
   },
-  
-  summaryRow: {
+
+  statusHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: spacing.sm,
   },
-  
-  summaryItem: {
-    flex: 1,
-    alignItems: 'center',
+
+  statusTitle: {
+    ...typography.h3,
+    color: colors.gray900,
   },
-  
-  summaryNumber: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: colors.gray800,
-    marginBottom: spacing.xs,
+
+  statusBadge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.pill,
   },
-  
-  summaryLabel: {
+
+  statusBadgeOk: {
+    backgroundColor: colors.successLight,
+  },
+
+  statusBadgeHelp: {
+    backgroundColor: colors.errorLight,
+  },
+
+  statusBadgeText: {
     fontSize: 14,
+    fontWeight: '600',
+    color: colors.gray900,
+  },
+
+  statusText: {
+    ...typography.body,
     color: colors.gray600,
   },
-  
-  summaryDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: colors.gray200,
+
+  statsContainer: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.xl,
   },
-  
+
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+    ...shadows.sm,
+  },
+
+  statNumber: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: colors.primary,
+    marginBottom: spacing.xs,
+  },
+
+  statNumberAlert: {
+    color: colors.error,
+  },
+
+  statLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.gray800,
+    textAlign: 'center',
+  },
+
+  statPeriod: {
+    fontSize: 12,
+    color: colors.gray500,
+    textAlign: 'center',
+  },
+
   section: {
     marginBottom: spacing.xl,
   },
-  
+
   sectionTitle: {
     ...typography.h3,
+    color: colors.gray900,
     marginBottom: spacing.md,
   },
-  
-  seniorCard: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    ...shadows.sm,
-  },
-  
-  seniorCardHeader: {
+
+  actionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    ...shadows.sm,
   },
-  
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+
+  actionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.md,
   },
-  
-  avatarText: {
+
+  actionIconText: {
     fontSize: 24,
-    fontWeight: '700',
-    color: colors.white,
   },
-  
-  seniorInfo: {
+
+  actionContent: {
     flex: 1,
   },
-  
-  seniorName: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.gray800,
-    marginBottom: spacing.xs,
-  },
-  
-  seniorCheckIn: {
-    fontSize: 14,
-    color: colors.gray600,
-  },
-  
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  
-  seniorStats: {
-    flexDirection: 'row',
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.gray100,
-  },
-  
-  stat: {
-    flex: 1,
-  },
-  
-  statValue: {
+
+  actionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.gray800,
+    color: colors.gray900,
     marginBottom: spacing.xs,
   },
-  
-  statLabel: {
+
+  actionDescription: {
     fontSize: 14,
     color: colors.gray600,
   },
-  
-  addButton: {
+
+  actionArrow: {
+    fontSize: 24,
+    color: colors.gray300,
+  },
+
+  activityList: {
     backgroundColor: colors.white,
     borderRadius: borderRadius.md,
-    borderWidth: 1.5,
-    borderColor: colors.gray200,
-    borderStyle: 'dashed',
-    padding: spacing.lg,
-    alignItems: 'center',
-    marginBottom: spacing.xl,
+    ...shadows.sm,
   },
-  
-  addButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.gray600,
-  },
-  
+
   activityItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
+    padding: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray100,
   },
-  
+
   activityIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.gray50,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.md,
   },
-  
+
   activityIconText: {
     fontSize: 20,
   },
-  
+
   activityContent: {
     flex: 1,
   },
-  
+
   activityTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
-    color: colors.gray800,
+    color: colors.gray900,
     marginBottom: spacing.xs,
   },
-  
+
   activityTime: {
-    fontSize: 14,
-    color: colors.gray600,
+    fontSize: 12,
+    color: colors.gray500,
+  },
+
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: spacing.xxl,
+  },
+
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: spacing.md,
+  },
+
+  emptyText: {
+    ...typography.body,
+    color: colors.gray500,
   },
 });
 
